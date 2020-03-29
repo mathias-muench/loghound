@@ -1492,6 +1492,8 @@ wordnumber_t print_pattern(support_t support, int wordcount)
     
   }
 
+  printf("Support: %llu\t", (unsigned long long) support);
+    
   if (PREFIX) {
   
     qsort((void *) numbers2, (size_t) wordcount,
@@ -1532,7 +1534,7 @@ wordnumber_t print_pattern(support_t support, int wordcount)
   
   }  
 
-  printf("\nSupport: %llu\n\n", (unsigned long long) support);
+  printf("\n");
     
   return m;
 }
@@ -1719,6 +1721,8 @@ unsigned long long report_closed_patterns(struct patgroup *node)
     
   for (ptr = node->patterns; ptr; ptr = ptr->next) {
 
+    printf("Support: %llu\t", (unsigned long long) node->support);
+      
     if (PREFIX) {
     
       qsort((void *) ptr->numbers, (size_t) ptr->wordcount,
@@ -1747,7 +1751,7 @@ unsigned long long report_closed_patterns(struct patgroup *node)
     
     }
       
-    printf("\nSupport: %llu\n\n", (unsigned long long) node->support);
+    printf("\n");
       
     ++n;
       
