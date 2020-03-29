@@ -1,0 +1,304 @@
+.\"
+.\" LogHound version 0.01 - loghound
+.\" a tool for mining frequent patterns from event logs
+.\"
+.\" Copyright (C) 2004 Risto Vaarandi
+.\"
+.\" This program is free software; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License
+.\" as published by the Free Software Foundation; either version 2
+.\" of the License, or (at your option) any later version.
+.\"
+.\" This program is distributed in the hope that it will be useful,
+.\" but WITHOUT ANY WARRANTY; without even the implied warranty of
+.\" MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+.\" GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public License
+.\" along with this program; if not, write to the Free Software
+.\" Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+.\"
+.TH loghound 1 "April 2004" "LogHound 0.01"
+.SH NAME
+loghound \- a tool for mining frequent patterns from event logs
+.SH SYNOPSIS
+.TP
+.B loghound
+[-b <byte offset>] 
+.br
+[-c] 
+.br
+[-d <regexp>] 
+.br
+[-f <regexp>]
+.br
+[-g]
+.br
+[-i <seed>]
+.br
+[-l <max itemset size>]
+.br
+[-n <cache trie support>]
+.br
+[-o <out-of-cache file>] 
+.br
+[-t <template>]
+.br
+[-v <item vector size>] 
+.br
+[-w <item table size>] 
+.br
+[-z <transaction vector size>]
+.br
+-s <support> <input files>
+.SH DESCRIPTION
+LogHound is a tool that was designed for finding frequent patterns from
+event log data sets with the help of a breadth-first frequent itemset mining 
+algorithm. LogHound views each line from input file(s) as a 
+.I transaction
+that consists of
+.I items
+(each item is unique in a transaction). A set of items (or
+.IR itemset )
+is said to be 
+.I frequent
+if at least N transactions contain all items from this set, where the value
+of N (or the
+.IR "support threshold" )
+is given by the user with the
+.B -s 
+option. 
+The
+.I support
+of an itemset is the number of transactions that contain all items from this 
+itemset.
+.PP
+If LogHound is started without the
+.B -g
+option, it assumes that input file(s) are raw event logs, and it mines 
+frequent line patterns from the file(s).
+In that case each line from input file(s) is considered a transaction with 
+word-position pairs as items. E.g., LogHound views the line
+.PP
+Password authentication for john accepted
+.PP
+as a transaction {(Password, 1), (authentication, 2), (for, 3), (john, 4),
+(accepted, 5)}. Note that each frequent itemset corresponds to a certain
+line pattern, e.g., the itemset {(Password, 1), (authentication, 2), 
+(for, 3), (accepted, 5)} represents the line pattern
+.PP
+Password authentication for * accepted
+.PP
+If LogHound is started with the
+.B -g
+option, it assumes that each line from input file(s) represents a set of
+events (e.g., events from a user ftp session), and it mines frequent event
+type patterns from the file(s).
+In that case each line from input file(s) is considered a transaction with 
+events as items (the order of events is not important). 
+E.g., LogHound views the line
+.PP
+FanFailure LinkDown LinkUp
+.PP
+as a transaction {FanFailure, LinkDown, LinkUp}.
+.PP
+In order to mine frequent itemsets (patterns), LogHound uses a breadth-first
+search strategy and keeps detected frequent itemsets in a trie data
+structure. Although the popular Apriori algorithm also works in a
+breadth-first manner and its implementations often employ the itemset trie,
+the algorithm that is built into LogHound is in several respects different
+from Apriori. The differences will be described below.
+.PP
+As its first step, LogHound will detect frequent items. In order to do that, 
+it makes a pass over the input data set and counts how many times each 
+item occurs. The item occurrence counters are kept in a move-to-front hash 
+table data structure (the number of slots in the table can be specified 
+with the 
+.B -w
+option). Unfortunately, since the number of items can be very large in
+event log data sets, this step could consume a lot of memory. If many items
+are infrequent, storing counters for them in memory is a waste of space;
+however, before the data set has been completely processed, it is impossible 
+to tell which items will finally be infrequent.
+.PP
+To cope with this problem, LogHound can be instructed to make an extra pass 
+over the input data set as its very first step, and build an 
+.I item summary vector 
+of size M before the item counting (the value of M is given with the
+.B -v
+option). The item summary vector is made up of M counters that are 
+initialized to zero. During the pass over the data set, every item is 
+hashed to an integer value from 0 to M-1. Each time the hash value I is
+calculated for an item, the Ith counter in the vector will be incremented. 
+Since efficient hashing functions are known to distribute their input 
+values uniformly across the output range, each counter in the vector will
+correspond roughly to N / M items (where N is the total number of items). 
+The value of the Ith counter equals to the sum of occurrence times of all 
+items which hash to the value I.
+After LogHound has constructed the item summary vector, it will find the
+occurrence times of only those items for which the counter values in 
+the summary vector are equal or greater than the support threshold. 
+If many of the items in the data set are infrequent, many of the counter
+values will not exceed the support threshold, and a significant amount of
+memory will be saved during the item counting. 
+.PP
+After frequent items have been detected, LogHound will ignore infrequent
+items in transactions during further mining (since if an item is
+infrequent, it can't be a part of any frequent itemset).
+In order to speed up the mining process, LogHound will load a part of the
+data set into memory and store it in the cache trie. For each transaction,
+LogHound considers the set of all frequent items from that transaction. 
+Cache trie is guaranteed to contain every such set which occurs at least for 
+N transactions in the data set (the value of N is given with the
+.B -n
+option). Sets which are not stored to the cache trie are written to the 
+out-of-cache file (the location of this file is given with the
+.B -o
+option). To detect, which sets should be loaded into memory, LogHound
+uses the summary vector technique described above, and loads the set into
+memory only if corresponding counter in the 
+.I transaction summary vector 
+is not below N (note that if we simply count the occurrence times of sets, 
+all sets would end up being in memory together with their occurrence counters).
+In that way, more frequently used transaction data are guaranteed to be in 
+main memory, while less frequently used data remain on disk.
+.PP
+During the mining process, LogHound detects frequent itemsets in a
+level-wise manner, building the itemset trie layer by layer. If the
+.B -l
+option is given, LogHound does not look for frequent itemsets that contain
+more items than specified by the option. Unlike Apriori,
+LogHound uses a heuristic for reducing the number of nodes in the trie,
+in order to reduce its memory consumption and runtime. When the mining is
+complete, LogHound derives all frequent itemsets from the nodes 
+of the itemset trie and outputs them. Since a node in the trie can represent
+several itemsets that all have the same support, LogHound outputs a concise 
+description for these itemsets, with variable items in parentheses.
+E.g., the description
+.PP
+(Nov) * * (myserver) * log:
+.br
+Support: 1249
+.PP
+represents four frequent itemsets with the support 1249:
+.PP
+Nov * * myserver * log:
+.br
+Nov * * * * log:
+.br
+* * * myserver * log:
+.br
+* * * * * log:
+.PP
+If the 
+.B -c
+option is given, LogHound will output closed frequent itemsets only (closed 
+itemset is an itemset that has no superset with the same support).
+.PP
+LogHound writes its output to standard output, and logs its messages to 
+standard error.
+.SH OPTIONS
+.TP
+.B "-b <byte offset>"
+when processing the input file(s), ignore the first <byte offset> bytes of
+every line. This option can be used to filter out the possibly irrelevant 
+information in the beginning of every line (e.g., timestamp and hostname).
+The default value for the option is zero, i.e., no bytes are ignored.
+.TP
+.B "-c"
+output closed frequent itemsets only.
+.TP
+.B "-d <regexp>"
+the regular expression describing the item delimiter in input file(s). 
+The default value for the option is '[ \\t]+', i.e., items are separated 
+from each other by one or more space or tabulation characters.
+.TP
+.B "-f <regexp>"
+when processing the input file(s), ignore all lines that do not match the
+regular expression. The regular expression can contain ()-subexpressions, 
+and when
+.B -t
+<template> option has also been given, the values of those subexpressions 
+can be retrieved in <template> through $-variables. When
+.B -f
+and
+.B -b
+options are used together, the
+.B -b
+option is applied first.
+.TP
+.B "-g"
+assume that each line in input file(s) represents a set of events, and mine
+frequent event type patterns from the file(s). 
+If this option is omitted, it is assumed that input file(s) are raw event 
+log(s), and frequent line patterns will be mined from the file(s).
+.TP
+.B "-i <seed>"
+the value that is used to initialize the 
+.BR rand (3) 
+based random number generator which is used to generate seed values for
+hashing functions inside LogHound. The default value for the option is 1.
+.TP
+.B "-l <max itemset size>"
+don't mine itemsets containing more than <max itemset size> items.
+.TP
+.B "-n <cache trie support>"
+create a cache trie that is guaranteed to contain transaction itemsets
+present at least <cache trie support> times in the data set. The default
+value for the option is zero, i.e., load the entire input data set into main
+memory.
+.TP
+.B "-o <out-of-cache file>"
+The location of the out-of-cache file. When this option is omitted, the
+entire input data set is loaded into main memory.
+.TP
+.B "-t <template>"
+template that is used to convert input lines, after they have matched the
+regular expression given with the
+.B -f
+option. Template is the string that will replace the original input line, 
+after the $-variables in the template have been replaced with the values
+of ()-subexpressions from the regular expression. For example, if the regular 
+expression given with the
+.B -f
+option is 'sshd\\[[0-9]+\\]: (.+)', and the template is "$1", then the line
+.br
+.I sshd[1344]: connect from 192.168.1.1 
+.br
+will be converted to 
+.br
+.I connect from 192.168.1.1 
+.br
+before the line will be processed by the mining algorithm that is built 
+into LogHound. This option is meaningless without the
+.B -f
+option.
+.TP
+.B "-v <item vector size>"
+the size of the item summary vector. The default value for the option is
+zero, i.e., no summary vector will be generated.
+.TP
+.B "-w <item table size>"
+the number of slots in the item hash table. The default value for the
+option is 100,000.
+.TP
+.B "-z <transaction vector size>"
+the size of the transaction summary vector. If this option is omitted
+or zero is specified for its value, the summary vector of size
+(the number of frequent items * 100) is used. This option is meaningless
+without the
+.B -n
+or the
+.B -o
+option, or when zero is specified for the value of the
+.B -n 
+option.
+.TP
+.B "-s <support>"
+the support threshold value. The value can be either an integer, or a real 
+number with a trailing %-sign.
+.SH AUTHOR
+Risto Vaarandi <risto.vaarandi@eyp.ee>
+.SH ACKNOWLEDGMENTS
+This software uses the fast and efficient Shift-Add-Xor hashing algorithm
+by M. V. Ramakrishna and Justin Zobel.

@@ -1,0 +1,56 @@
+LogHound version 0.01 - a tool for mining frequent patterns from event logs
+
+
+Introduction:
+
+LogHound is a tool that was designed for finding frequent patterns from
+event log data sets with the help of a breadth-first frequent itemset mining
+algorithm.
+
+
+Availability:
+
+This program is distributed under the terms of GNU General Public License, 
+and can be downloaded from http://kodu.neti.ee/~risto/loghound/
+
+
+Release Notes:
+
+Has been tested on Redhat 8.0 Linux and on Solaris 8 (compiled with gcc), 
+but is likely to compile and work on other platforms as well.
+
+
+Files in this package:
+
+ChangeLog - change log
+COPYING - copy of GNU General Public License
+README - this file
+loghound.1 - LogHound man page
+loghound.c - LogHound program
+
+
+Installation:
+
+Compile the loghound.c file with your favourite compiler, and move the binary
+and the man page to appropriate directories. With gcc, the following line
+is sufficient for compiling: 
+
+gcc -o loghound -O2 loghound.c
+
+If you wish to add support for large files over 2GB, compile with the 
+following options:
+
+gcc -o loghound -O2 -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 loghound.c
+
+
+Author: 
+
+Risto Vaarandi <risto.vaarandi@eyp.ee>
+
+
+Acknowledgements:
+
+This work is supported by the Union Bank of Estonia.
+
+This software uses the fast and efficient Shift-Add-Xor hashing algorithm 
+by M.V.Ramakrishna and Justin Zobel.
